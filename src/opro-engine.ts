@@ -96,6 +96,32 @@ export async function evaluatePrompt(
 }
 
 /**
+ * Parses N candidate prompts out of the optimizer LLM's raw text response.
+ * Pure function — no network access — so it's unit-testable in isolation
+ * from the API call in generateCandidates below.
+ */
+export function parseCandidates(raw: string, n: number, fallback: string): string[] {
+  // Primary: parse numbered list "1. ..." "2. ..." etc.
+  const numbered = raw.split(/\n(?=\d+\.\s)/).map((line) =>
+    line.replace(/^\d+\.\s*/, "").trim()
+  ).filter((line) => line.length > 0);
+
+  if (numbered.length >= n) {
+    return numbered.slice(0, n);
+  }
+
+  // Fallback: split on double newline
+  const byParagraph = raw.split(/\n\n+/).map((s) => s.trim()).filter((s) => s.length > 0);
+  if (byParagraph.length >= 1) {
+    return byParagraph.slice(0, n);
+  }
+
+  // Last resort: return truncated fallback text as single candidate
+  console.warn("  [parseCandidates] Parsing failed; using fallback candidate.");
+  return [fallback.slice(0, 200)];
+}
+
+/**
  * Generates N candidate prompts from LLM_optimizer conditioned on M(τ_t).
  * One API call returns a numbered list; parsed with regex fallback.
  * max_tokens=800 accommodates up to ~5 candidates of reasonable length.
@@ -118,24 +144,7 @@ export async function generateCandidates(
       .map((b) => b.text)
       .join("");
 
-    // Primary: parse numbered list "1. ..." "2. ..." etc.
-    const numbered = raw.split(/\n(?=\d+\.\s)/).map((line) =>
-      line.replace(/^\d+\.\s*/, "").trim()
-    ).filter((line) => line.length > 0);
-
-    if (numbered.length >= n) {
-      return numbered.slice(0, n);
-    }
-
-    // Fallback: split on double newline
-    const byParagraph = raw.split(/\n\n+/).map((s) => s.trim()).filter((s) => s.length > 0);
-    if (byParagraph.length >= 1) {
-      return byParagraph.slice(0, n);
-    }
-
-    // Last resort: return truncated meta-prompt as single candidate
-    console.warn("  [generateCandidates] Parsing failed; using fallback candidate.");
-    return [metaPrompt.slice(0, 200)];
+    return parseCandidates(raw, n, metaPrompt);
   } catch (err) {
     console.error("  [generateCandidates] API error:", err);
     return [metaPrompt.slice(0, 200)];
