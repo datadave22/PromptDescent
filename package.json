@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "test:sentiment": "npx tsx src/test-sentiment.ts",
-    "test:financial": "npx tsx src/test-financial.ts"
+    "test:financial": "npx tsx src/test-financial.ts",
+    "test:unit": "npx tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0"
